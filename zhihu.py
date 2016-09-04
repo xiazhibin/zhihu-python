@@ -587,7 +587,10 @@ class User:
                 print '++++++++++++++++++++++++++++++++++'
                 return None
             url = url["srcset"]
+            url = url.split()[0]
             raw_url = url.split('_xl')
+            #print 'url is', url
+            #return url
             return ''.join(raw_url)
 
     def get_data_id(self):
