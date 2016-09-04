@@ -520,6 +520,7 @@ class User:
     soup = None
 
     def __init__(self, user_url, user_id=None):
+        self.soup = None
         if user_url == None:
             self.user_id = "匿名用户"
         elif user_url.startswith('www.zhihu.com/people', user_url.index('//') + 2) == False:
@@ -538,7 +539,7 @@ class User:
             'Referer': "http://www.zhihu.com/"
         }
         r = requests.get(self.user_url, headers=headers, verify=False)
-        soup = BeautifulSoup(r.content, "lxml")
+        soup = BeautifulSoup(r.text, "lxml")
         self.soup = soup
 
     def get_user_id(self):
@@ -566,31 +567,28 @@ class User:
                 else:
                     return user_id
 
-    def get_head_img_url(self, scale=4):
+    def get_head_img_url(self):
         """
-            By liuwons (https://github.com/liuwons)
             增加获取知乎识用户的头像url
-            scale对应的头像尺寸:
-                1 - 25×25
-                3 - 75×75
-                4 - 100×100
-                6 - 150×150
-                10 - 250×250
         """
-        scale_list = [1, 3, 4, 6, 10]
-        scale_name = '0s0ml0t000b'
         if self.user_url == None:
             print "I'm anonymous user."
             return None
         else:
-            if scale not in scale_list:
-                print 'Illegal scale.'
-                return None
             if self.soup == None:
                 self.parser()
             soup = self.soup
-            url = soup.find("img", class_="Avatar Avatar--l")["src"]
-            return url[:-5] + scale_name[scale] + url[-4:]
+            url = soup.find('img', attrs={'alt': self.user_id})
+            if url == None:
+                print '**********************************'
+                print self.user_id, 'has no head img'
+                print soup
+                print soup.prettify()
+                print '++++++++++++++++++++++++++++++++++'
+                return None
+            url = url["srcset"]
+            raw_url = url.split('_xl')
+            return ''.join(raw_url)
 
     def get_data_id(self):
         """
@@ -775,6 +773,7 @@ class User:
                         for j in xrange(min(followees_num - i * 20, 20)):
                             followee_soup = BeautifulSoup(followee_list[j], "lxml")
                             user_link = followee_soup.find("h2", class_="zm-list-content-title").a
+                            print 'user_link is', user_link
                             yield User(user_link["href"], user_link.string.encode("utf-8"))
 
     def get_followers(self):

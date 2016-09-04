@@ -5,6 +5,12 @@ __pycache__/
 # C extensions
 *.so
 
+#pictures
+*.jpg
+*.jpeg
+*.png
+*.gif
+
 # Distribution / packaging
 .Python
 env/
