@@ -27,6 +27,11 @@ from zhihu import User
 from zhihu import Collection
 from zhihu import Post
 from zhihu import Column
+import threading
+import time
+import urllib2
+import urllib
+#import thread
 
 
 def question_test(url):
@@ -296,7 +301,37 @@ def main():
     column_test(column_url)
     test()
 
+def save_img(pic_url):
+    #try:
+    if pic_url == None: return
+    stream = urllib2.urlopen(pic_url)
+    data = stream.read()
+    split_path = pic_url.split('/')
+    f_name = split_path.pop()
+    print pic_url, '---', f_name
+    with open(f_name, 'wb') as f:
+        f.write(data)
+    #except Exception, e:
+    #print "Cant't download %s: %s" % (f_name, e)
+    #finally:
+
+def multi_down_pic(user):
+    #print user.get_user_id()
+    print '------'
+    img_url = i.get_head_img_url()
+    #print img_url
+    print '======'
+    save_img(img_url)
 
 if __name__ == '__main__':
-    main()
-
+    #main()
+    user_url = 'https://www.zhihu.com/people/excited-vczh'
+    user = User(user_url, 'vczh')
+    followees = user.get_followers()
+    count = 0
+    for i in followees:
+        count += 1
+        t = threading.Thread(target=multi_down_pic, args=(i,))
+        t.start()
+        print count
+        time.sleep(1)
