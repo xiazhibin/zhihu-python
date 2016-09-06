@@ -514,13 +514,12 @@ class Question:
         return int(soup.find("meta", itemprop="visitsCount")["content"])
 
 
-class User:
-    user_url = None
-    # session = None
-    soup = None
+class User(object):
 
     def __init__(self, user_url, user_id=None):
+        self.requests = requests
         self.soup = None
+        self.user_id = None
         if user_url == None:
             self.user_id = "匿名用户"
         elif user_url.startswith('www.zhihu.com/people', user_url.index('//') + 2) == False:
@@ -529,6 +528,8 @@ class User:
             self.user_url = user_url
             if user_id != None:
                 self.user_id = user_id
+            else:
+                self.user_id = user_url.split('/').pop()
 
     def parser(self):
         headers = {
@@ -538,7 +539,13 @@ class User:
             'Pragma': "no-cache",
             'Referer': "http://www.zhihu.com/"
         }
-        r = requests.get(self.user_url, headers=headers, verify=False)
+        r = self.requests.get(self.user_url, headers=headers, verify=False, timeout=(6.05, 27))
+        times = 4
+        while r.status_code != 200:
+            if times <= 0: raise Exception("%d failed to get %s" % (r.status_code, self.user_url))
+            time.sleep(random.random() * 100)
+            r = self.requests.get(self.user_url, headers=headers, verify=False, timeout=(6.05, 27))
+            times -= 1
         soup = BeautifulSoup(r.text, "lxml")
         self.soup = soup
 
@@ -663,12 +670,16 @@ class User:
             if self.soup == None:
                 self.parser()
             soup = self.soup
-            topics_num = soup.find_all("div", class_="zm-profile-side-section-title")[-1].strong.string.encode("utf-8")
-            I=''
-            for i in topics_num:
-                if i.isdigit():
-                    I=I+i
-            topics_num=int(I)
+            num = soup.select('a[href$="topics"] > strong')
+            if not num:
+                print 'Can not get topics, ', self.user_id, ': ', self.user_url
+                raise Exception(soup.prettify())
+                return 0
+            print '------------'
+            print num
+            num = num[0]
+            print '==============='
+            topics_num = int(num.string.split()[0])
             return topics_num       
 
     def get_agree_num(self):
@@ -745,7 +756,7 @@ class User:
                     'Pragma': "no-cache",
                     'Referer': "http://www.zhihu.com/"
                 }
-                r = requests.get(followee_url, headers=headers, verify=False)
+                r = self.requests.get(followee_url, headers=headers, verify=False)
 
                 soup = BeautifulSoup(r.content, "lxml")
                 for i in xrange((followees_num - 1) / 20 + 1):
@@ -770,7 +781,7 @@ class User:
                             'Referer': followee_url
                         }
 
-                        r_post = requests.post(post_url, data=data, headers=header, verify=False)
+                        r_post = self.requests.post(post_url, data=data, headers=header, verify=False)
 
                         followee_list = r_post.json()["msg"]
                         for j in xrange(min(followees_num - i * 20, 20)):
@@ -798,7 +809,7 @@ class User:
                     'Pragma': "no-cache",
                     'Referer': "http://www.zhihu.com/"
                 }
-                r = requests.get(follower_url, headers=headers, verify=False)
+                r = self.requests.get(follower_url, headers=headers, verify=False)
 
                 soup = BeautifulSoup(r.content, "lxml")
                 for i in xrange((followers_num - 1) / 20 + 1):
@@ -822,7 +833,7 @@ class User:
                             'Host': "www.zhihu.com",
                             'Referer': follower_url
                         }
-                        r_post = requests.post(post_url, data=data, headers=header, verify=False)
+                        r_post = self.requests.post(post_url, data=data, headers=header, verify=False)
 
                         follower_list = r_post.json()["msg"]
                         for j in xrange(min(followers_num - i * 20, 20)):
@@ -840,7 +851,6 @@ class User:
             # print topics_num
             if topics_num == 0:
                 return
-                yield
             else:
                 topics_url = self.user_url + "/topics"
                 headers = {
@@ -850,13 +860,19 @@ class User:
                     'Pragma': "no-cache",
                     'Referer': "http://www.zhihu.com/"
                 }
-                r = requests.get(topics_url, headers=headers, verify=False)
+                r = self.requests.get(topics_url, headers=headers, verify=False, timeout=(6.05, 27))
+                times = 4
+                while r.status_code != 200:
+                    if times <= 0: raise Exception("%d: failed to post to %s" % (r.status_code, topics_url))
+                    time.sleep(random.random() * 100)
+                    r = self.requests.get(topics_url, headers=headers, verify=False, timeout=(6.05, 27))
+                    times -= 1
                 soup = BeautifulSoup(r.content, "lxml")
                 for i in xrange((topics_num - 1) / 20 + 1):
                     if i == 0:
-                        topic_list = soup.find_all("div", class_="zm-profile-section-item zg-clear")
-                        for j in xrange(min(topics_num, 20)):
-                            yield topic_list[j].find("strong").string.encode("utf-8")
+                        topic_list = soup.select("#zh-profile-topic-list strong")
+                        for j in topic_list:
+                            yield j.string.encode("utf-8")
                     else:
                         post_url = topics_url
                         _xsrf = soup.find("input", attrs={'name': '_xsrf'})["value"]
@@ -871,13 +887,21 @@ class User:
                             'Host': "www.zhihu.com",
                             'Referer': topics_url
                         }
-                        r_post = requests.post(post_url, data=data, headers=header, verify=False)
-
+                        r_post = self.requests.post(post_url, data=data, headers=header, verify=False, timeout=(6.05, 27))
+                        times = 4
+                        while r_post.status_code != 200:
+                            if times <= 0: raise Exception("%d: failed to post %s" % (r_post.status_code, post_url))
+                            time.sleep(random.random() * 100)
+                            r_post = self.requests.post(post_url, data=data, headers=header, verify=False, timeout=(6.05, 27))
+                            times -= 1
+                        #print '---------------------------------'
+                        #print r_post.json()['msg']
+                        #print '======================='
                         topic_data = r_post.json()["msg"][1]
                         topic_soup = BeautifulSoup(topic_data, "lxml")
-                        topic_list = topic_soup.find_all("div", class_="zm-profile-section-item zg-clear")
-                        for j in xrange(min(topics_num - i * 20, 20)):
-                            yield topic_list[j].find("strong").string.encode("utf-8")
+                        topic_list = soup.select("#zh-profile-topic-list strong")
+                        for j in topic_list:
+                            yield j.string.encode("utf-8")
 
     def get_asks(self):
         """
@@ -904,7 +928,7 @@ class User:
                         'Pragma': "no-cache",
                         'Referer': "http://www.zhihu.com/"
                     }
-                    r = requests.get(ask_url, headers=headers, verify=False)
+                    r = self.requests.get(ask_url, headers=headers, verify=False)
 
                     soup = BeautifulSoup(r.content, "lxml")
                     for question in soup.find_all("a", class_="question_link"):
@@ -932,7 +956,7 @@ class User:
                         'Pragma': "no-cache",
                         'Referer': "http://www.zhihu.com/"
                     }
-                    r = requests.get(answer_url, headers=headers, verify=False)
+                    r = self.requests.get(answer_url, headers=headers, verify=False)
                     soup = BeautifulSoup(r.content, "lxml")
                     for answer in soup.find_all("a", class_="question_link"):
                         question_url = "http://www.zhihu.com" + answer["href"][0:18]
@@ -960,7 +984,7 @@ class User:
                         'Pragma': "no-cache",
                         'Referer': "http://www.zhihu.com/"
                     }
-                    r = requests.get(collection_url, headers=headers, verify=False)
+                    r = self.requests.get(collection_url, headers=headers, verify=False)
 
                     soup = BeautifulSoup(r.content, "lxml")
                     for collection in soup.find_all("div", class_="zm-profile-section-item zg-clear"):
@@ -984,7 +1008,7 @@ class User:
                 'Pragma': "no-cache",
                 'Referer': "http://www.zhihu.com/"
             }
-            r = requests.get(self.user_url, headers=headers, verify=False)
+            r = self.requests.get(self.user_url, headers=headers, verify=False)
             soup = BeautifulSoup(r.content, "lxml")
             # Handle the first liked item
             first_item = soup.find("div", attrs={'class':'zm-profile-section-item zm-item clearfix'})
@@ -1005,7 +1029,7 @@ class User:
                 'Referer': self.user_url,
                 'User-Agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.101 Safari/537.36",
             }
-            r = requests.post(post_url, data=data, headers=header, verify=False)
+            r = self.requests.post(post_url, data=data, headers=header, verify=False)
             response_size = r.json()["msg"][0]
             response_html = r.json()["msg"][1]
             while response_size > 0:
@@ -1025,7 +1049,7 @@ class User:
                 'start': latest_data_time,
                 '_xsrf': _xsrf,
                 }
-                r = requests.post(post_url, data=data, headers=header, verify=False)
+                r = self.requests.post(post_url, data=data, headers=header, verify=False)
                 response_size = r.json()["msg"][0]
                 response_html = r.json()["msg"][1]
             return

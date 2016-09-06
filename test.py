@@ -31,7 +31,8 @@ import threading
 import time
 import urllib2
 import urllib
-#import thread
+import mutex
+import random
 
 
 def question_test(url):
@@ -323,15 +324,52 @@ def multi_down_pic(user):
     print '======'
     save_img(img_url)
 
+ml = mutex.mutex()
+topics_map = {}
+def increment(t):
+    if t not in topics_map: topics_map[t] = 1
+    else: topics_map[t] += 1
+
+def insert_data(user):
+    time.sleep(random.random() * 10)
+    topics = user.get_topics()
+    for t in topics:
+        ml.lock(increment, t)
+        ml.unlock()
+        print t
+
+
 if __name__ == '__main__':
     #main()
-    user_url = 'https://www.zhihu.com/people/excited-vczh'
-    user = User(user_url, 'vczh')
-    followees = user.get_followers()
+    #user_url = 'https://www.zhihu.com/people/excited-vczh'
+    user_url = 'https://www.zhihu.com/people/li-tao-40-73'
+    user = User(user_url, u'李涛')
+    #user = User(user_url, u'vczh')
+    #print user.get_topics_num()
+    #for i in user.get_topics():
+    #    print i.encode('utf-8')
+    
+    #''' 
+    followees = user.get_followees()
     count = 0
+    topics = user.get_topics()
+    for t in topics:
+        if t not in topics_map: topics_map[t] = 1
+        else: topics_map[t] += 1
+        print t
+    trs = []
     for i in followees:
+        t = threading.Thread(target=insert_data, args=(i,))
+        trs.append(t)
+    for t in trs:
         count += 1
-        t = threading.Thread(target=multi_down_pic, args=(i,))
         t.start()
         print count
-        time.sleep(1)
+        #time.sleep(0.8)
+    for t in trs:
+        t.join()
+    print '+++++++++++++++++++++++++++++++++++'
+    for a, b in topics_map.iteritems():
+        print a.encode('utf-8'), 'has:', b
+
+    #'''
